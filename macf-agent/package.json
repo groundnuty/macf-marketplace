@@ -1,0 +1,22 @@
+{
+  "name": "macf-agent",
+  "version": "0.1.0",
+  "description": "MACF channel server — runtime component of the macf-agent Claude Code plugin",
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@peculiar/webcrypto": "^1.5.0",
+    "@peculiar/x509": "^2.0.0",
+    "reflect-metadata": "^0.2.2",
+    "zod": "^4.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/groundnuty/macf-marketplace"
+  }
+}

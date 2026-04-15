@@ -1,0 +1,18 @@
+{
+  "name": "macf-marketplace",
+  "owner": {
+    "name": "groundnuty",
+    "email": "groundnuty@users.noreply.github.com"
+  },
+  "metadata": {
+    "description": "Plugin distribution for the Multi-Agent Coordination Framework (MACF). Provides the macf-agent plugin with channel server, coordination skills, agent identity templates, and startup hooks."
+  },
+  "plugins": [
+    {
+      "name": "macf-agent",
+      "source": "./macf-agent",
+      "description": "Runtime component of MACF: MCP channel server with mTLS, four coordination skills (macf-status, macf-peers, macf-ping, macf-issues), seven agent identity templates, and SessionStart hooks.",
+      "version": "0.1.0"
+    }
+  ]
+}
