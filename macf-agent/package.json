@@ -1,6 +1,6 @@
 {
   "name": "macf-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MACF channel server — runtime component of the macf-agent Claude Code plugin",
   "type": "module",
   "main": "dist/server.js",
@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "~1.29.0",
     "@peculiar/webcrypto": "^1.5.0",
     "@peculiar/x509": "^2.0.0",
     "reflect-metadata": "^0.2.2",
