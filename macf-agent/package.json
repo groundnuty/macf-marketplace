@@ -1,6 +1,6 @@
 {
   "name": "macf-agent",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "MACF channel server — runtime component of the macf-agent Claude Code plugin",
   "type": "module",
   "main": "dist/server.js",

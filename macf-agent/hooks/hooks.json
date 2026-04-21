@@ -14,9 +14,10 @@
       {
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "Run /macf-status to see your identity and peers, then /macf-issues to check pending work.",
-            "once": true
+            "type": "command",
+            "command": "printf '%s' '{\"continue\":true,\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Session started. Please run /macf-status to see your identity and peers, then /macf-issues to check pending work before waiting on user input.\"}}'",
+            "once": true,
+            "timeout": 5
           }
         ]
       }

@@ -4,6 +4,21 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.1.4] — 2026-04-21
+
+### Fixed
+
+- **SessionStart hook no longer errors with `ToolUseContext is required for prompt hooks`.** v0.1.0–v0.1.3 shipped a `type: "prompt"` SessionStart hook to auto-suggest `/macf-status` + `/macf-issues` on agent launch. That hook type isn't implemented by current Claude Code for SessionStart (runtime requires a `ToolUseContext` that isn't initialized yet at that lifecycle point — per [Claude Code hooks docs](https://code.claude.com/docs/en/hooks) and [anthropics/claude-code#37122](https://github.com/anthropics/claude-code/issues/37122), which was closed as "not planned"). Error fired on every session resume. Closes [`groundnuty/macf-marketplace#7`](https://github.com/groundnuty/macf-marketplace/issues/7).
+- **Fix:** replaced with a `type: "command"` hook that emits JSON with `additionalContext` — the framework-documented pattern for injecting startup context. Agent sees the suggestion as context and decides whether to run the slash commands. `once: true` still applies.
+
+### Consumer action
+
+None. Consumers on `@v0.1` floating tag auto-pick up v0.1.4 on the next `macf update` + restart.
+
+### Known residual
+
+Running-session wake (where a POST to a running agent's /notify triggers a new prompt in the live TUI) is the architecturally harder companion — tracked at [macf#185](https://github.com/groundnuty/macf/issues/185), not covered by this patch.
+
 ## [0.1.3] — 2026-04-21
 
 ### Fixed
