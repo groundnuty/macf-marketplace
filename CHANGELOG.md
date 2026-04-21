@@ -4,6 +4,29 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.1.3] — 2026-04-21
+
+### Fixed
+
+- **Plugin's MCP server can now resolve ESM deps at startup.** v0.1.2 added `env.NODE_PATH = "${CLAUDE_PLUGIN_DATA}/node_modules"` to the `mcpServers` config, but Node v20+ `NODE_PATH` only works for CommonJS `require()`, not for ESM `import` — and this plugin is `"type": "module"` with `import` statements throughout `dist/*.js`. First `import '@modelcontextprotocol/sdk/...'` threw `ERR_MODULE_NOT_FOUND`. The channel server never reached the listening state; silent failure-to-start on every consumer. Closes [`groundnuty/macf-marketplace#5`](https://github.com/groundnuty/macf-marketplace/issues/5).
+- **Fix:** the SessionStart hook now also runs `ln -sfn "${CLAUDE_PLUGIN_DATA}/node_modules" "${CLAUDE_PLUGIN_ROOT}/node_modules"` after `npm install`. ESM resolves via adjacency — Node walks up from the importing file looking for `node_modules/`, finds the symlink pointing at the real install dir under `CLAUDE_PLUGIN_DATA`. Also dropped the vestigial `env.NODE_PATH` from `plugin.json` (harmless, but pruning so no one thinks it's load-bearing).
+- **Bonus hardening:** hook also now `mkdir -p "${CLAUDE_PLUGIN_DATA}"` before the `cd` — on a fresh workspace where the data dir hasn't been created yet, the `cd` would fail silently and the `npm install` never ran. Non-blocking today but closing the path for future clean installs.
+
+### Security
+
+- **`dist/registry/` + `dist/certs/` rebuilt** from macf source at `c1a987e`. Picks up:
+  - serverAuth EKU on peer certs (macf#180) — agents are dual-role (server + client) on mTLS, but certs shipped with only clientAuth. Consumers trying to route `/notify` to an agent hit `curl (60): unsuitable certificate purpose` because OpenSSL server-role validation needs serverAuth. Server cert accepts still need clientAuth (enforced per #121); serverAuth is additive.
+  - `hostToSan()` helper + `advertiseHost` parameter on `generateAgentCert` (macf#178 Gap 3) — agents routed across Tailscale need SAN entries matching their advertised host, not just 127.0.0.1/localhost. Operator rotates certs with `macf certs rotate` after setting `advertise_host` in `macf-agent.json`.
+  - All the other post-0.1.2 improvements on macf main (registry env, CV phase 6 launcher gaps, etc.).
+
+### Consumer action
+
+- **Operator rollout on existing consumers:**
+  1. `macf update` (picks up plugin 0.1.2 → 0.1.3).
+  2. Restart the agent (kill + relaunch). The SessionStart hook runs on next launch, `npm install`s to `CLAUDE_PLUGIN_DATA`, creates the adjacency symlink, `node dist/server.js` resolves ESM imports normally.
+  3. If the consumer is off-box-routed (Tailscale / DNS), also run `macf certs rotate` after setting `advertise_host` in `.macf/macf-agent.json`. Otherwise no cert change needed.
+- **New consumers:** `macf init` → `./claude.sh` just works (no manual `npm install` in plugin dir, no `ln -sfn` tribal knowledge).
+
 ## [0.1.2] — 2026-04-21
 
 ### Security
