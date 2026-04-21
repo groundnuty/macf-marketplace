@@ -4,6 +4,32 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.1.7] — 2026-04-21
+
+### Changed
+
+- **SessionStart auto-pickup hook is now smart + multi-repo.** v0.1.6 shipped the dumb-minimal fix: unconditional "run /macf-status + /macf-issues" instruction on every fresh launch, even when the queue was empty (~330-550 token burn per launch with nothing pending). v0.1.7 replaces that with a live `gh api /installation/repositories` enumeration + per-repo issue count. The hook emits `additionalContext` ONLY when there are actually pending issues; empty queue → silent (0 tokens). Closes [`groundnuty/macf-marketplace#13`](https://github.com/groundnuty/macf-marketplace/issues/13).
+- **Multi-repo coverage via App installation set** (not a static config field). Agents now automatically watch every repo their GitHub App is installed on — matches how multi-repo scope actually emerges in MACF (dynamic, operator-managed via App install state) rather than a declarative `watched_repos` list we considered and rejected.
+
+### Design rationale
+
+Initial design proposed `watched_repos: string[]` in `macf-agent.json` + `macf init --watched-repos <csv>` flag + `MACF_WATCHED_REPOS` env var (spanning macf CLI + plugin). Science-agent's refinement replaced that with a single live `/installation/repositories` API call: no config surface, no CLI flag, no env export. Operator grants/revokes scope purely via App-install state. Net scope dropped from 2 PRs across 2 repos to 1 PR in this repo.
+
+### Implementation notes
+
+- New `hooks/session-start-pickup.sh` (executable). Replaces v0.1.6's giant escaped-JSON printf one-liner. `hooks.json` now references the script via `${CLAUDE_PLUGIN_ROOT}/hooks/session-start-pickup.sh`.
+- **Fail-silent on any error** — missing env, missing token, API failure, non-numeric output all exit 0 with no output. Matches v0.1.6's fail-silent philosophy.
+- **Timeout bumped 5s → 20s** to accommodate N API calls (typical agents: 2-6 repos installed, well under 20s total).
+- **Output shape preserved**: same `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}` schema. No `continue` field — same shape that v0.1.6 verified-working on live consumers.
+
+### Consumer action
+
+None. `@v0.1` floating picks up v0.1.7 on next `macf update` + restart. Operators who previously saw auto-pickup on every launch now see it ONLY when there's actual pending work. Token savings accrue silently.
+
+### Related
+
+- macf#185 (running-session wake via tmux-send-to-claude sidecar) — complementary: this hook handles fresh-launch auto-pickup; #185 handles notification-wake on running sessions. Both paths now cover all their intended cases; different abstractions.
+
 ## [0.1.6] — 2026-04-21
 
 ### Added
