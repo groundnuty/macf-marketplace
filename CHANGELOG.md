@@ -4,6 +4,29 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.1.6] — 2026-04-21
+
+### Added
+
+- **Re-added SessionStart auto-pickup hook** with corrected JSON shape that matches the working pattern (as used by the `superpowers` plugin). Drops the `continue: true` field that v0.1.4 erroneously included — that field is a PostToolUse response-schema field; emitting it at SessionStart routed the hook output through the tool-use-hook handler, which requires a `ToolUseContext` that isn't initialized at SessionStart lifecycle (hence v0.1.3/v0.1.4's `ToolUseContext is required for prompt hooks. This is a bug.` error). Closes [`groundnuty/macf-marketplace#10`](https://github.com/groundnuty/macf-marketplace/issues/10).
+- Hook now emits:
+  ```json
+  { "hookSpecificOutput": { "hookEventName": "SessionStart", "additionalContext": "Session started. Please run /macf-status ..." } }
+  ```
+  Identical shape to `superpowers`' session-start hook (verified working in production). `once: true` still applies so resumes don't re-inject.
+
+### Rationale vs v0.1.5 (over-correction)
+
+v0.1.5 removed the hook entirely because at that point we believed the whole `additionalContext` pattern was broken upstream. It wasn't — only our emission had the extra `continue` field. v0.1.6 is the minimal correct fix; the auto-pickup UX is reinstated.
+
+### Credit
+
+Diagnosis corrected after `@groundnuty` pushed back with "I use superpowers all the time and never saw this error" — which forced a JSON-shape diff rather than extrapolating from "both emit additionalContext."
+
+### Consumer action
+
+None. Consumers on `@v0.1` floating pick up v0.1.6 on next `macf update` + restart. Auto-pickup of pending GitHub work fires on fresh-launch sessions.
+
 ## [0.1.5] — 2026-04-21
 
 ### Removed
