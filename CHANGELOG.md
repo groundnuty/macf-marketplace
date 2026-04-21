@@ -4,6 +4,26 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.1.5] — 2026-04-21
+
+### Removed
+
+- **The SessionStart "auto-pickup" hook that was supposed to inject a prompt suggesting `/macf-status` + `/macf-issues`.** v0.1.3 shipped it as `type: "prompt"` (failed: `ToolUseContext is required for prompt hooks`). v0.1.4 rewrote it to `type: "command"` emitting `additionalContext` JSON (failed with the exact same error). The "prompt hooks" class in the error diagnostic is the lifecycle group, not the `type` field value — any SessionStart emit that routes through the context-injection path hits the same broken ToolUseContext code. Closes [`groundnuty/macf-marketplace#7`](https://github.com/groundnuty/macf-marketplace/issues/7) by source-removal rather than continued iteration against a framework ceiling.
+- **UX impact:** operators type `/macf-issues` manually on session start. Same workflow as the last two days when the hook was silently failing. When [macf#185](https://github.com/groundnuty/macf/issues/185) (running-session wake via tmux-send) lands, the same mechanism subsumes this use case cleanly from a working abstraction.
+
+### Kept
+
+- SessionStart's `type: "command"` dependency-installer + node_modules adjacency symlink (from v0.1.3). That one works reliably — no JSON stdout, no context injection, just shell side-effects.
+
+### Consumer action
+
+None. Consumers on `@v0.1` floating pick up v0.1.5 on next `macf update` + restart. Zero-noise session start.
+
+### Related
+
+- macf#185 (running-session wake architecture) — when that lands, auto-pickup comes back properly
+- Claude Code feature request [#37122](https://github.com/anthropics/claude-code/issues/37122) — upstream was closed as "not planned", locking us out of the original approach
+
 ## [0.1.4] — 2026-04-21
 
 ### Fixed
