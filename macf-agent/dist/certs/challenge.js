@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { toVariableSegment } from '../registry/variable-name.js';
 import { MacfError } from '../errors.js';
 export class ChallengeError extends MacfError {
     constructor(message) {
@@ -6,35 +6,49 @@ export class ChallengeError extends MacfError {
         this.name = 'ChallengeError';
     }
 }
-function challengeVarName(project, agentName) {
-    return `${project.toUpperCase()}_CHALLENGE_${agentName}`;
+/** Registry variable name for an agent's current challenge. */
+export function challengeVarName(project, agentName) {
+    return `${toVariableSegment(project)}_CHALLENGE_${toVariableSegment(agentName)}`;
 }
 /**
- * Create a new challenge for an agent cert signing request.
- * Stores the challenge ID in a registry variable.
+ * Allocate a challenge and return the client-facing (id + instruction).
+ * Does NOT write the registry variable — the client does that in the next
+ * round-trip, proving GitHub write access at the registry scope.
  */
-export async function createChallenge(config) {
-    const challengeId = randomBytes(16).toString('hex');
+export function createChallenge(config) {
+    const rec = config.store.issue(config.agentName);
     const varName = challengeVarName(config.project, config.agentName);
-    await config.client.writeVariable(varName, challengeId);
     return {
-        challengeId,
-        instruction: `Write ${varName} = '${challengeId}' to the registry`,
+        challengeId: rec.challengeId,
+        instruction: `Write registry variable ${varName} = '${rec.expectedValue}'. ` +
+            `Then POST /sign again with { challenge_done: true, challenge_id: '${rec.challengeId}' }.`,
     };
 }
 /**
- * Verify and consume a challenge: read the variable, compare with submitted ID,
- * delete on match (one-time use). Throws on mismatch or missing challenge.
+ * Verify a step-2 request. Caller passes the client-supplied challenge_id
+ * and agent_name. We read the registry variable, delete it regardless of
+ * outcome (prevents replay), consume the in-memory entry, and return
+ * 'ok' / 'mismatch' — the caller surfaces a generic error on mismatch to
+ * avoid telling the attacker WHICH check failed.
  */
 export async function verifyAndConsumeChallenge(config) {
     const varName = challengeVarName(config.project, config.agentName);
-    const storedValue = await config.client.readVariable(varName);
-    if (storedValue === null) {
-        throw new ChallengeError(`No challenge found for agent "${config.agentName}"`);
+    const observedValue = await config.client.readVariable(varName);
+    // Delete the registry variable unconditionally (best-effort). Intentional:
+    // mismatch attempts don't leave a re-usable variable behind; attackers get
+    // one shot per outstanding challenge.
+    try {
+        await config.client.deleteVariable(varName);
     }
-    // Delete the challenge variable (one-time use) — consume regardless of match
-    // to prevent brute-force attempts
-    await config.client.deleteVariable(varName);
-    return storedValue;
+    catch {
+        // Ignore; consuming the in-memory entry below still blocks replay
+        // server-side, which is the security-critical half.
+    }
+    if (observedValue === null) {
+        // Still consume the in-memory entry (replay-block).
+        config.store.consume(config.challengeId, config.agentName, '');
+        return 'mismatch';
+    }
+    return config.store.consume(config.challengeId, config.agentName, observedValue);
 }
 //# sourceMappingURL=challenge.js.map

@@ -1,13 +1,35 @@
 import { createServer } from 'node:https';
 import { readFileSync } from 'node:fs';
+import { randomInt } from 'node:crypto';
 import { NotifyPayloadSchema, SignRequestSchema } from './types.js';
-import { PortExhaustedError, PortUnavailableError, HttpsServerError } from './errors.js';
+import { PortExhaustedError, PortUnavailableError, HttpsServerError, HttpError } from './errors.js';
 const MAX_BODY_BYTES = 64 * 1024; // 64KB
-const PORT_RANGE_START = 8800;
-const PORT_RANGE_SIZE = 1000;
+export const PORT_RANGE_START = 8800;
+export const PORT_RANGE_SIZE = 1000;
 const MAX_PORT_ATTEMPTS = 10;
-function randomPort() {
-    return PORT_RANGE_START + Math.floor(Math.random() * PORT_RANGE_SIZE);
+// clientAuth EKU OID — RFC 5280 §4.2.1.12. Peer certs emit this via
+// generateAgentCert + signCSR (#125); the routing-action client cert
+// emits it too (#119). Enforced at the server as the final step of
+// DR-004 v2 EKU rollout (#121). Non-EKU certs are rejected at
+// /notify + /health + /sign uniformly.
+export const CLIENT_AUTH_EKU_OID = '1.3.6.1.5.5.7.3.2';
+/**
+ * Check whether the presented peer cert carries the clientAuth EKU.
+ * Node's `tls.TLSSocket.getPeerCertificate()` exposes EKU as
+ * `ext_key_usage` — an array of OID strings. If the field is absent
+ * or empty, the cert carries no EKU; if present, we require the
+ * clientAuth OID specifically. Exported for tests.
+ */
+export function peerCertHasClientAuthEKU(peerCert) {
+    return Array.isArray(peerCert.ext_key_usage)
+        && peerCert.ext_key_usage.includes(CLIENT_AUTH_EKU_OID);
+}
+// Exported for tests (#109 H1). Uses crypto.randomInt (CSPRNG)
+// rather than a weak PRNG — port numbers aren't secrets, but the
+// canonical defensive pattern for random in security-adjacent code
+// paths is the CSPRNG.
+export function randomPort() {
+    return PORT_RANGE_START + randomInt(PORT_RANGE_SIZE);
 }
 function sendJson(res, status, body) {
     const json = JSON.stringify(body);
@@ -26,7 +48,12 @@ function readBody(req) {
             size += chunk.length;
             if (size > MAX_BODY_BYTES && !settled) {
                 settled = true;
-                req.destroy();
+                // Destroy the underlying socket (not just req) so the half-open
+                // write-side (res) is also torn down. `req.destroy()` alone
+                // leaves res attached to a destroyed request, which can retain
+                // GC references under high-throughput abuse — see ultrareview
+                // finding H2.
+                req.socket.destroy();
                 reject(new HttpsServerError('Body too large'));
                 return;
             }
@@ -64,6 +91,26 @@ export function createHttpsServer(config) {
         const tlsSocket = req.socket;
         if (!tlsSocket.authorized) {
             sendJson(res, 401, { error: 'Unauthorized' });
+            return;
+        }
+        // Step 3 of the DR-004 v2 EKU rollout (#121): require the peer
+        // cert to carry the clientAuth EKU. Peer certs emit it via
+        // generateAgentCert + signCSR (#125); routing-action client cert
+        // emits it via generateClientCert (#119). A CA-signed cert
+        // WITHOUT the EKU — e.g. an old peer cert pre-#125 that hasn't
+        // been rotated — is rejected uniformly at /health, /notify,
+        // /sign. Operators who miss a rotation see 403 with a clear
+        // message pointing at `macf certs rotate`.
+        const peerCert = tlsSocket.getPeerCertificate();
+        if (!peerCertHasClientAuthEKU(peerCert)) {
+            const cn = peerCert.subject?.CN ?? 'unknown';
+            logger.warn('client_cert_missing_eku', {
+                from_cn: cn,
+                url: req.url ?? '',
+            });
+            sendJson(res, 403, {
+                error: 'Forbidden: client certificate missing clientAuth Extended Key Usage. Run `macf certs rotate` to pick up an EKU-enabled cert.',
+            });
             return;
         }
         const { method, url } = req;
@@ -150,7 +197,9 @@ export function createHttpsServer(config) {
                 sendJson(res, 200, response);
             }
             catch (err) {
-                const status = err instanceof Error && 'status' in err ? err.status : 500;
+                // Typed HttpError carries a specific intended status; anything
+                // else is an unexpected server-side failure → 500.
+                const status = err instanceof HttpError ? err.httpStatus : 500;
                 sendJson(res, status, {
                     error: err instanceof Error ? err.message : 'Signing failed',
                 });
@@ -187,6 +236,21 @@ export function createHttpsServer(config) {
     return {
         async start(port, host) {
             server = createServer(tlsOptions, requestHandler);
+            // TLS-layer handshake failures (no cert, expired cert, wrong CA,
+            // missing clientAuth EKU per #121) never reach requestHandler.
+            // Without this listener, operators see a dead connection with
+            // no log entry explaining why. Log enough to triage — ultrareview
+            // finding H1.
+            server.on('tlsClientError', (err, tlsSocket) => {
+                const peerCn = tlsSocket.getPeerCertificate?.()
+                    ?.subject?.CN ?? 'unknown';
+                logger.warn('tls_client_error', {
+                    error: err.message,
+                    code: err.code ?? 'unknown',
+                    from_cn: peerCn,
+                    remote_addr: tlsSocket.remoteAddress ?? 'unknown',
+                });
+            });
             // Explicit port: fail immediately if busy
             if (port !== 0) {
                 try {

@@ -1,13 +1,16 @@
 import { AgentInfoSchema } from './types.js';
+import { toVariableSegment } from './variable-name.js';
 /**
  * Creates a Registry backed by a GitHubVariablesClient.
  * All three backends (org, profile, repo) share this implementation —
  * the only difference is the URL path prefix baked into the client.
  */
 export function createRegistry(client, project) {
-    const prefix = `${project.toUpperCase()}_AGENT_`;
+    // GitHub Actions variable names only accept [A-Z0-9_]. Hyphens in the
+    // project or agent name become underscores; names are uppercased.
+    const prefix = `${toVariableSegment(project)}_AGENT_`;
     function variableName(agentName) {
-        return `${prefix}${agentName}`;
+        return `${prefix}${toVariableSegment(agentName)}`;
     }
     return {
         async register(name, info) {
@@ -32,7 +35,9 @@ export function createRegistry(client, project) {
         },
         async list(filterPrefix) {
             const allVars = await client.listVariables();
-            const fullPrefix = `${prefix}${filterPrefix}`;
+            // Sanitize filter side with the same transform used at write time so
+            // a filterPrefix like 'cv-' matches stored 'CV_ARCHITECT'.
+            const fullPrefix = `${prefix}${filterPrefix ? toVariableSegment(filterPrefix) : ''}`;
             const results = [];
             for (const v of allVars) {
                 if (!v.name.startsWith(fullPrefix))
