@@ -1,0 +1,40 @@
+name: Agent Router
+
+# Delegates to the reusable workflow in groundnuty/macf-actions@v1.3.0
+# so @mentions in issues / PRs / reviews on this repo route to the
+# correct agent's tmux session. Mirrors the pattern used by
+# groundnuty/macf itself — this repo's release-PR reviews need the
+# same delivery as any other MACF-coordinated repo.
+#
+# Pinned to immutable v1.3.0 rather than @v1 so routing infra doesn't
+# move without a deliberate PR here.
+#
+# No GitHub-context interpolations in run: scripts — this workflow
+# only does `uses:` delegation. All user-controlled input handling
+# happens inside the reusable workflow, which uses env: for all
+# `github.event.*` values per its own security posture.
+
+on:
+  issues:
+    types: [labeled, closed]
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+
+# Match what the reusable workflow expects. `checks: read` is needed
+# for the CI-completion routing job inside agent-router.yml v1.3+.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  checks: read
+
+jobs:
+  route:
+    uses: groundnuty/macf-actions/.github/workflows/agent-router.yml@v1.3.0
+    secrets: inherit
