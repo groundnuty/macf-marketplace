@@ -46,19 +46,44 @@ export async function importPrivateKey(keyPem) {
     return webcrypto.subtle.importKey('pkcs8', der, RSA_ALGORITHM, false, ['sign']);
 }
 /**
+ * Classify a host string as an IP or DNS name for SubjectAlternativeName
+ * entries. Shape-only check (matches `999.999.999.999` too — cert
+ * generation doesn't validate octet ranges, and we'd rather keep the
+ * classifier forgiving than have it silently misclassify a typo'd IP
+ * as DNS). IPv6 not handled here; add `:` detection + `[]` URL-wrapping
+ * when there's an actual ask.
+ */
+function hostToSan(host) {
+    const ipv4Shape = /^(\d{1,3}\.){3}\d{1,3}$/;
+    return ipv4Shape.test(host)
+        ? { type: 'ip', value: host }
+        : { type: 'dns', value: host };
+}
+/**
  * Shared peer-cert builder used by both generateAgentCert (new peer
  * certs via `macf certs init`) and signCSR (CSR-signed peer certs
  * via `/sign`). Produces the DR-004-compliant extension set:
  *
  *   - KeyUsage: digitalSignature | keyEncipherment (mTLS client+server use)
- *   - SubjectAlternativeName: 127.0.0.1 / localhost (per DR-004; SAN
- *       across Tailscale hosts is a known follow-up per `phase2 backlog`)
- *   - ExtendedKeyUsage: clientAuth (#125, DR-004 v2 EKU rollout)
+ *   - SubjectAlternativeName: 127.0.0.1 / localhost (always, for local-debug
+ *       flows — curl-to-localhost for /health etc.) plus any caller-
+ *       supplied extraSans (typically the agent's advertised host per
+ *       macf#178 Gap 3)
+ *   - ExtendedKeyUsage: serverAuth + clientAuth. Agents are dual-role
+ *       peers — they act as TLS SERVERS when receiving /notify, /health,
+ *       /sign POSTs, and as TLS CLIENTS when originating POSTs to other
+ *       peers. Without serverAuth, OpenSSL/curl server-role validation
+ *       rejects the presented cert with "unsuitable certificate purpose"
+ *       (curl error 60). See macf#180. #121 still enforces clientAuth
+ *       server-side at /health + /notify + /sign; serverAuth is purely
+ *       additive for the client-side TLS validation of agents-as-servers.
+ *       `generateClientCert` (routing-action) stays client-only — it's
+ *       a pure client with no server role.
  *
  * Extracted per ultrareview finding A10 — both callers previously
  * duplicated this ~25-line extension list. When DR-004 extensions
- * evolve (e.g. serverAuth EKU, per-host SAN), a single edit here
- * affects both paths instead of two in lockstep.
+ * evolve, a single edit here affects both paths instead of two in
+ * lockstep.
  */
 async function buildPeerCert(opts) {
     const caCert = new x509.X509Certificate(opts.caCertPem);
@@ -66,6 +91,11 @@ async function buildPeerCert(opts) {
     const notBefore = new Date();
     const notAfter = new Date();
     notAfter.setFullYear(notAfter.getFullYear() + AGENT_CERT_VALIDITY_YEARS);
+    const sans = [
+        { type: 'ip', value: '127.0.0.1' },
+        { type: 'dns', value: 'localhost' },
+        ...(opts.extraSans ?? []),
+    ];
     const cert = await x509.X509CertificateGenerator.create({
         serialNumber: randomBytes(8).toString('hex'),
         subject: opts.subject,
@@ -77,13 +107,16 @@ async function buildPeerCert(opts) {
         signingKey: caKey,
         extensions: [
             new x509.KeyUsagesExtension(x509.KeyUsageFlags.digitalSignature | x509.KeyUsageFlags.keyEncipherment, true),
-            new x509.SubjectAlternativeNameExtension([
-                { type: 'ip', value: '127.0.0.1' },
-                { type: 'dns', value: 'localhost' },
-            ]),
+            new x509.SubjectAlternativeNameExtension(sans),
             new x509.ExtendedKeyUsageExtension([
-                // clientAuth OID (#125) — per DR-004 v2 EKU rollout. Enforced
-                // server-side at /health + /notify + /sign per #121.
+                // serverAuth OID — agents are TLS servers on /notify, /health,
+                // /sign. Without this, OpenSSL/curl server-role validation
+                // rejects with "unsuitable certificate purpose" (curl error
+                // 60). See macf#180.
+                '1.3.6.1.5.5.7.3.1',
+                // clientAuth OID (#125) — agents are also TLS clients when
+                // originating POSTs to peers. Enforced server-side at /health
+                // + /notify + /sign per #121.
                 '1.3.6.1.5.5.7.3.2',
             ]),
         ],
@@ -93,15 +126,23 @@ async function buildPeerCert(opts) {
 /**
  * Generate agent certificate signed by the CA.
  * Used when the CA key is available locally.
+ *
+ * `advertiseHost`, when supplied, is added to the cert's SAN list on
+ * top of the default [127.0.0.1, localhost] pair. This is how an agent
+ * reachable at a Tailscale IP / DNS name passes server-hostname
+ * verification when the routing Action (or a sibling agent) connects
+ * over the network. Classification is IPv4-shape vs DNS via
+ * `hostToSan()`. See macf#178 Gap 3.
  */
 export async function generateAgentCert(config) {
-    const { agentName, caCertPem, caKeyPem, certPath, keyPath } = config;
+    const { agentName, caCertPem, caKeyPem, advertiseHost, certPath, keyPath } = config;
     const agentKeys = await webcrypto.subtle.generateKey(RSA_ALGORITHM, true, ['sign', 'verify']);
     const certPem = await buildPeerCert({
         subject: `CN=${agentName}`,
         caCertPem,
         caKeyPem,
         publicKey: agentKeys.publicKey,
+        extraSans: advertiseHost ? [hostToSan(advertiseHost)] : undefined,
     });
     const exported = await webcrypto.subtle.exportKey('pkcs8', agentKeys.privateKey);
     const agentKeyPem = exportKeyToPem(exported);
