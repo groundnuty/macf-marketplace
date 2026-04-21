@@ -18,6 +18,7 @@ function requireFilePath(name) {
 export function loadConfig() {
     const agentName = requireEnv('MACF_AGENT_NAME');
     const caCertPath = requireFilePath('MACF_CA_CERT');
+    const caKeyPath = resolveCaKeyPath(caCertPath);
     const agentCertPath = requireFilePath('MACF_AGENT_CERT');
     const agentKeyPath = requireFilePath('MACF_AGENT_KEY');
     const agentType = process.env['MACF_AGENT_TYPE'] ?? 'permanent';
@@ -48,6 +49,7 @@ export function loadConfig() {
         advertiseHost,
         port,
         caCertPath,
+        caKeyPath,
         agentCertPath,
         agentKeyPath,
         debug,
@@ -56,6 +58,38 @@ export function loadConfig() {
         instanceId,
         registry: registryConfig,
     };
+}
+let warnedFallback = false;
+/**
+ * Resolve the CA private-key path. Preferred source is the explicit
+ * MACF_CA_KEY env var (#103 R3); falls back to the historical
+ * `-cert.pem` → `-key.pem` swap on MACF_CA_CERT for workspaces that
+ * haven't re-run `macf update` yet (claude.sh now emits MACF_CA_KEY).
+ *
+ * Edge case: if caCertPath doesn't literally contain `-cert.pem`,
+ * `.replace()` silently returns the same string. That's the exact
+ * failure mode this issue fixes — the fallback preserves the old
+ * behavior for compat, but the explicit env is the only reliable
+ * path going forward.
+ */
+function resolveCaKeyPath(caCertPath) {
+    const explicit = process.env['MACF_CA_KEY'];
+    if (explicit !== undefined && explicit !== '') {
+        if (!existsSync(explicit)) {
+            throw new ConfigError(`File not found for MACF_CA_KEY: ${explicit}`);
+        }
+        return explicit;
+    }
+    // Warn once per process so operators see their workspace is in legacy
+    // mode. The structured logger isn't available this early in startup
+    // (loadConfig runs before createLogger), so write directly to stderr.
+    if (!warnedFallback) {
+        warnedFallback = true;
+        process.stderr.write('Warning: MACF_CA_KEY not set; deriving from MACF_CA_CERT. ' +
+            'This fallback is for legacy workspaces only — run `macf update` ' +
+            'to regenerate claude.sh with the explicit MACF_CA_KEY export.\n');
+    }
+    return caCertPath.replace('-cert.pem', '-key.pem');
 }
 function parseRegistryConfig(registryType) {
     switch (registryType) {

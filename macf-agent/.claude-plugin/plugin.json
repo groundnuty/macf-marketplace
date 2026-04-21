@@ -1,6 +1,6 @@
 {
   "name": "macf-agent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Multi-Agent Coordination Framework — channel server, runtime skills, agent definitions, and hooks for coordinating Claude Code agents via mTLS and GitHub",
   "author": {
     "name": "groundnuty",
@@ -22,7 +22,10 @@
   "mcpServers": {
     "macf-agent": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
+      "env": {
+        "NODE_PATH": "${CLAUDE_PLUGIN_DATA}/node_modules"
+      }
     }
   }
 }

@@ -13,7 +13,7 @@ type="startup_check": Pending issues found at session startup.
   Review and pick up the most important one.`;
 export function createMcpChannel(config) {
     const instructions = config.instructions ?? CHANNEL_INSTRUCTIONS;
-    const server = new Server({ name: `macf-${config.agentName}`, version: '0.1.0' }, {
+    const server = new Server({ name: `macf-${config.agentName}`, version: '0.1.1' }, {
         capabilities: {
             experimental: { 'claude/channel': {} },
         },
