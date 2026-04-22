@@ -1,7 +1,7 @@
 {
   "name": "macf-agent",
-  "version": "0.1.8",
-  "description": "Multi-Agent Coordination Framework — channel server, runtime skills, agent definitions, and hooks for coordinating Claude Code agents via mTLS and GitHub",
+  "version": "0.2.0",
+  "description": "Multi-Agent Coordination Framework — channel server, runtime skills, agent definitions, and hooks for coordinating Claude Code agents via mTLS and GitHub. v0.2.0+ runs the channel server via npx dispatch; no bundled runtime or install hook (see groundnuty/macf DR-022).",
   "author": {
     "name": "groundnuty",
     "email": "groundnuty@users.noreply.github.com"
@@ -21,8 +21,8 @@
   "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "macf-agent": {
-      "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"]
+      "command": "npx",
+      "args": ["-y", "@groundnuty/macf-channel-server"]
     }
   }
 }

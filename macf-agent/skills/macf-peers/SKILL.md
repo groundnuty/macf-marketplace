@@ -1,11 +1,11 @@
 ---
 name: macf-peers
 description: List all registered agents with their health status. Use this to discover peers in the coordination network.
-allowed-tools: Bash(node *)
+allowed-tools: Bash(npx *)
 ---
 
 Run this command and display the output as a table:
 
 ```!
-node "${CLAUDE_PLUGIN_ROOT}/dist/plugin/bin/macf-plugin-cli.js" peers
+npx -y -p @groundnuty/macf macf-plugin-cli peers
 ```
