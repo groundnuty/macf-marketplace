@@ -41,6 +41,14 @@ export function loadConfig() {
     const instanceId = randomBytes(3).toString('hex');
     const registryType = process.env['MACF_REGISTRY_TYPE'] ?? 'repo';
     const registryConfig = parseRegistryConfig(registryType);
+    // macf#185: workspace dir + tmux target for the on-notify wake path.
+    // All three are optional from the plugin's runtime perspective:
+    // - Missing workspaceDir → wake path no-ops (helper script can't be located).
+    // - Missing tmuxSession/Window + no $TMUX → wake path no-ops silently.
+    // - Any present → wake path uses explicit target, falls back to auto-detect.
+    const workspaceDir = process.env['MACF_WORKSPACE_DIR'] || undefined;
+    const tmuxSession = process.env['MACF_TMUX_SESSION'] || undefined;
+    const tmuxWindow = process.env['MACF_TMUX_WINDOW'] || undefined;
     return {
         agentName,
         agentType,
@@ -57,6 +65,9 @@ export function loadConfig() {
         project,
         instanceId,
         registry: registryConfig,
+        workspaceDir,
+        tmuxSession,
+        tmuxWindow,
     };
 }
 let warnedFallback = false;

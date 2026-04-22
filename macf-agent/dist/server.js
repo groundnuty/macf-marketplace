@@ -1,3 +1,12 @@
+// macf#196: OTEL bootstrap is now async + dynamic. We still import
+// the module eagerly (to get the function export), but the actual
+// SDK packages are loaded only when the env is set, inside
+// `bootstrapOtel()`. Calls to `trace.getTracer()` before the bootstrap
+// runs return the global no-op tracer — harmless, since no spans are
+// created before main() awaits the bootstrap.
+import { bootstrapOtel } from './otel.js';
+import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
+import { getTracer, SpanNames } from './tracing.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { createMcpChannel } from './mcp.js';
@@ -7,14 +16,19 @@ import { createRegistryFromConfig } from './registry/factory.js';
 import { checkCollision, CollisionError } from './collision.js';
 import { registerShutdownHandler } from './shutdown.js';
 import { generateToken } from './token.js';
-import { checkPendingIssues } from './startup-issues.js';
 import { createChallenge, verifyAndConsumeChallenge } from './certs/challenge.js';
 import { createChallengeStore } from './certs/challenge-store.js';
 import { signCSR } from './certs/agent-cert.js';
 import { loadCA } from './certs/ca.js';
 import { HttpError } from './errors.js';
 import { formatNotifyContent } from './notify-formatter.js';
+import { wakeViaTmux } from './tmux-wake.js';
 async function main() {
+    // Bootstrap OTEL BEFORE anything calls `trace.getTracer()` with
+    // intent to record. Function is no-op when
+    // OTEL_EXPORTER_OTLP_ENDPOINT is unset; when set, dynamic-imports
+    // the SDK packages + registers the global provider. See macf#196.
+    await bootstrapOtel();
     const config = loadConfig();
     const logger = createLogger({
         logPath: config.logPath,
@@ -55,12 +69,57 @@ async function main() {
                 type: payload.type,
                 issue: payload.issue_number,
             });
-            await mcp.pushNotification(content, meta);
+            // macf#194: wrap MCP push in an INTERNAL child span of the active
+            // notify span. Shows up in Langfuse as a timed hop between the
+            // inbound HTTP and the tmux wake.
+            const tracer = getTracer();
+            await tracer.startActiveSpan(SpanNames.McpPush, { kind: SpanKind.INTERNAL }, async (span) => {
+                try {
+                    await mcp.pushNotification(content, meta);
+                    span.setStatus({ code: SpanStatusCode.OK });
+                }
+                catch (err) {
+                    span.recordException(err);
+                    span.setStatus({
+                        code: SpanStatusCode.ERROR,
+                        message: err instanceof Error ? err.message : String(err),
+                    });
+                    throw err;
+                }
+                finally {
+                    span.end();
+                }
+            });
             health.recordNotification();
             logger.info('mcp_pushed', {
                 type: payload.type,
                 issue: payload.issue_number,
             });
+            // macf#185: sidecar wake via tmux-send-to-claude.sh. The MCP push
+            // above deposits the notification in the channel-server's
+            // observable state but does NOT interrupt a running Claude TUI
+            // with a new prompt — /notify ≠ wake without this step. Tmux
+            // injection surfaces the notification as the TUI's next input
+            // turn, so the agent actually processes it. Fail-silent on any
+            // path where tmux isn't available (no workspace dir, no tmux
+            // session, helper missing, tmux command errors).
+            if (config.workspaceDir !== undefined) {
+                // Use the formatted content as the wake prompt — same text
+                // Claude would see via the MCP channel, just delivered
+                // through the input buffer path so it becomes an actual turn.
+                wakeViaTmux(content, {
+                    workspaceDir: config.workspaceDir,
+                    session: config.tmuxSession,
+                    window: config.tmuxWindow,
+                    logger,
+                });
+            }
+            else {
+                logger.info('tmux_wake_skipped', {
+                    reason: 'no_workspace_dir',
+                    detail: 'MACF_WORKSPACE_DIR unset',
+                });
+            }
         };
         // P2: Generate token early — needed for /sign endpoint and registry
         const token = await generateToken();
@@ -179,14 +238,6 @@ async function main() {
             agentName: config.agentName,
             registry,
             httpsServer,
-            logger,
-        });
-        // P2: Check for pending issues and push startup_check notification
-        await checkPendingIssues({
-            repo: 'groundnuty/macf',
-            agentLabel: 'code-agent',
-            token,
-            onNotify,
             logger,
         });
         logger.info('server_started', {
