@@ -4,6 +4,38 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.1.8] — 2026-04-22
+
+### Fixed
+
+- **Plugin MCP server no longer crashes at startup** on workspaces missing `@opentelemetry/sdk-*` packages. v0.1.7 introduced OTEL instrumentation (macf#194) but `dist/otel.js` had top-level static imports of 5 SDK packages that weren't declared in `plugin/package.json` — every consumer workspace hit `ERR_MODULE_NOT_FOUND` at `node dist/server.js` start, regardless of whether `OTEL_EXPORTER_OTLP_ENDPOINT` was set. MCP died, channel server never started, cv-project-archaeologist went offline. Closes [`groundnuty/macf-marketplace#6`](https://github.com/groundnuty/macf-marketplace/issues/6) / [`groundnuty/macf#196`](https://github.com/groundnuty/macf/issues/196).
+
+### Changed
+
+- **`dist/otel.js` rebuilt** from macf source at `0335a48`. Now uses dynamic `await import()` for the SDK packages inside an async `bootstrapOtel()` function, gated on the env check. Node only resolves the packages when the operator opts in. The zero-cost doctrine is now preserved structurally, not just in the docblock.
+- **6 OTEL packages added to `macf-agent/package.json` dependencies** (exact pins per the upstream 0.x version churn):
+  - `@opentelemetry/api@1.9.1`
+  - `@opentelemetry/exporter-trace-otlp-proto@0.215.0`
+  - `@opentelemetry/resources@2.7.0`
+  - `@opentelemetry/sdk-trace-base@2.7.0`
+  - `@opentelemetry/sdk-trace-node@2.7.0`
+  - `@opentelemetry/semantic-conventions@1.40.0`
+- SessionStart npm-install hook pulls these into `CLAUDE_PLUGIN_DATA/node_modules` on next launch. Consumers opting into observability (endpoint set) get recording tracers; consumers without the env set see zero module-resolution cost.
+
+### Consumer action
+
+None beyond the standard refresh. Rollout sequence:
+
+1. `macf update` in the workspace → pulls v0.1.8 plugin tarball.
+2. Agent relaunch → SessionStart hook runs `npm install`, pulls the 6 OTEL packages into the data dir + symlinks node_modules (per v0.1.3 hook design).
+3. Channel server starts cleanly. If `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, traces are zero-cost no-ops. If set, bootstrap dynamic-imports the packages + registers the provider.
+
+### Related
+
+- `groundnuty/macf#194` (original OTEL integration — introduced the bug)
+- `groundnuty/macf#196` (diagnosis + dynamic-import fix)
+- `groundnuty/macf#197` (companion — claude.sh template gets Claude Code telemetry gates so traces actually emit when the stack is up)
+
 ## [0.1.7] — 2026-04-21
 
 ### Changed
