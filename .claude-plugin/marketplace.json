@@ -11,8 +11,8 @@
     {
       "name": "macf-agent",
       "source": "./macf-agent",
-      "description": "Runtime component of MACF: MCP channel server with mTLS, four coordination skills (macf-status, macf-peers, macf-ping, macf-issues), seven agent identity templates, and SessionStart hooks.",
-      "version": "0.2.0"
+      "description": "Runtime component of MACF: MCP channel server with mTLS, four coordination skills (macf-status, macf-peers, macf-ping, macf-issues), seven agent identity templates, SessionStart hooks (auto-pickup), and Stop hook (notify_peer per DR-023 UC-1).",
+      "version": "0.2.1"
     }
   ]
 }

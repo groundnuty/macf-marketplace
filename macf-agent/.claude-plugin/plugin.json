@@ -1,7 +1,7 @@
 {
   "name": "macf-agent",
-  "version": "0.2.0",
-  "description": "Multi-Agent Coordination Framework — channel server, runtime skills, agent definitions, and hooks for coordinating Claude Code agents via mTLS and GitHub. v0.2.0+ runs the channel server via npx dispatch; no bundled runtime or install hook (see groundnuty/macf DR-022).",
+  "version": "0.2.1",
+  "description": "Multi-Agent Coordination Framework — channel server, runtime skills, agent definitions, and hooks for coordinating Claude Code agents via mTLS and GitHub. v0.2.0+ runs the channel server via npx dispatch (DR-022). v0.2.1 adds the type:'mcp_tool' Stop hook invoking notify_peer (DR-023 UC-1, groundnuty/macf#256).",
   "author": {
     "name": "groundnuty",
     "email": "groundnuty@users.noreply.github.com"
