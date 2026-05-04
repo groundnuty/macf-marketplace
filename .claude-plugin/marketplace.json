@@ -11,8 +11,8 @@
     {
       "name": "macf-agent",
       "source": "./macf-agent",
-      "description": "Runtime component of MACF: MCP channel server with mTLS, five coordination skills (macf-status, macf-peers, macf-ping, macf-issues, macf-notify-peer), seven agent identity templates, SessionStart hooks (auto-pickup), and Stop hook (notify_peer per DR-023 UC-1; v0.2.20 adds /macf-agent:notify-peer slash-command + wake-on-receipt opt-in for operator-driven cross-agent messaging — bundles macf#349 + #350 + #351).",
-      "version": "0.2.20"
+      "description": "Runtime component of MACF: MCP channel server with mTLS, five coordination skills (macf-status, macf-peers, macf-ping, macf-issues, macf-notify-peer), seven agent identity templates, SessionStart hooks (auto-pickup), and Stop hook (notify_peer per DR-023 UC-1; v0.2.21 simplifies notify_peer API by dropping the wake field — receiver discriminates wake-on-receipt by event type alone per macf#355).",
+      "version": "0.2.21"
     }
   ]
 }
