@@ -4,6 +4,12 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.2.36] — 2026-06-07
+
+### Fixed
+
+- **Plugin hooks no longer fail to load on Claude Code 2.1.x** — dropped the explicit `"hooks": "./hooks/hooks.json"` key from `macf-agent/.claude-plugin/plugin.json`. Current Claude Code (≥2.1.x) **auto-loads** the standard `hooks/hooks.json` from the plugin root, so an explicit `manifest.hooks` reference to that same file now triggers `Hook load failed: Duplicate hooks file detected`, and the plugin's hooks (`SessionStart` auto-pickup + `Stop` `notify_peer`) silently don't load. `manifest.hooks` is reserved for *additional* hook files beyond the standard one. Surfaced on the CV fleet during the Stage-3 revival (`/doctor` flagged the duplicate on every macf agent on CC 2.1.x). Channel-server/MCP routing was unaffected (it loads independently of plugin hooks); only the plugin-shipped hooks were dark. Refs [`groundnuty/macf`](https://github.com/groundnuty/macf) finding #7.
+
 ## [0.1.8] — 2026-04-22
 
 ### Fixed
