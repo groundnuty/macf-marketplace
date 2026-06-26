@@ -1,6 +1,6 @@
 {
   "name": "macf-agent",
-  "version": "0.2.38",
+  "version": "0.2.39",
   "description": "Multi-Agent Coordination Framework — channel server, runtime skills, agent definitions, and hooks for coordinating Claude Code agents via mTLS and GitHub. v0.2.0+ runs the channel server via npx dispatch (DR-022). v0.2.1 added the type:'mcp_tool' Stop hook invoking notify_peer (DR-023 UC-1, groundnuty/macf#256). v0.2.2 fixed the Stop hook server reference to plugin-namespaced mount path. v0.2.3 picks up @groundnuty/macf-channel-server v0.2.3 (peer_notification NotifyType + self-exclusion normalization fixes). v0.2.33 resyncs to current channel-server + adds mcpServers.env OTEL forwarding so the channel-server MCP child receives telemetry config (macf#422 AC-5 — the claude→MCP-spawn boundary drops OTEL_*; the ${VAR:-} empty-defaults keep config-parse safe for non-telemetry workspaces).",
   "author": {
     "name": "groundnuty",

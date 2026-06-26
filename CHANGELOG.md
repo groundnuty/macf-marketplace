@@ -4,6 +4,18 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.2.39] — 2026-06-27
+
+Lockstep with `@groundnuty/macf*@0.2.39` (the fleet-health release — DR-030 interconnect-doctor + DR-031 agent-supervision framework).
+
+### Added
+
+- **Turn-state marker plugin-hook** (`groundnuty/macf#571`) — writes `.macf/turn-state.json` (busy/idle + turn metadata) so the channel-server's `/health.state` can report live turn progress (DR-030 detection).
+
+### Changed
+
+- **Coordination rules** distributed with the plugin pick up **silent-fallback Instance 13** + `coordination.md` §Communication 5(c) gate-sweep (`groundnuty/macf#576`) — a formal PR approval that unblocks a third-party gate-owner fires no routing to them, so the gate-owner asserts the APPROVED review on GitHub rather than waiting for a ping.
+
 ## [0.2.36] — 2026-06-07
 
 ### Fixed
