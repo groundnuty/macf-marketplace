@@ -1,19 +1,81 @@
 {
-  "description": "MACF agent hooks: auto-pickup context injection (SessionStart) + cross-agent peer notification (Stop). v0.2.0+ removes the dependency-installer + adjacency-symlink hook (replaced by npx dispatch per DR-022). v0.2.1 adds the type:'mcp_tool' Stop hook invoking notify_peer per DR-023 UC-1 (groundnuty/macf#256).",
+  "description": "MACF agent hooks: dependency installer, work check, Stop-hook peer-notification (UC-1 per DR-023), PreCompact-hook session checkpoint (UC-3 per DR-023), and the turn-state marker that lets the channel server report accurate live agent state through long tool waits (DR-030 phase-1, groundnuty/macf#568)",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-pickup.sh",
-            "once": true,
-            "timeout": 20
+            "command": "diff -q \"${CLAUDE_PLUGIN_ROOT}/package.json\" \"${CLAUDE_PLUGIN_DATA}/package.json\" >/dev/null 2>&1 || (cd \"${CLAUDE_PLUGIN_DATA}\" && cp \"${CLAUDE_PLUGIN_ROOT}/package.json\" . && npm install) || rm -f \"${CLAUDE_PLUGIN_DATA}/package.json\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Run /macf-status to see your identity and peers, then /macf-issues to check pending work.",
+            "once": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" user-prompt-submit",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" pre-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" post-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" post-tool-use-failure",
+            "timeout": 10
           }
         ]
       }
     ],
     "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" stop",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "hooks": [
           {
@@ -25,6 +87,46 @@
             },
             "timeout": 30,
             "statusMessage": "Notifying peers of session end..."
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" stop-failure",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/mark-turn-state.sh\" session-end",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "plugin:macf-agent:macf-agent",
+            "tool": "checkpoint_to_memory",
+            "input": {
+              "session_id": "${session_id}",
+              "transcript_path": "${transcript_path}",
+              "cwd": "${cwd}"
+            },
+            "timeout": 30,
+            "statusMessage": "Writing session checkpoint to memory..."
           }
         ]
       }

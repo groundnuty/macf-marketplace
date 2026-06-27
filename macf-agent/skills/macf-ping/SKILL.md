@@ -2,11 +2,11 @@
 name: macf-ping
 description: Ping a specific peer agent and show its detailed status
 argument-hint: [agent-name]
-allowed-tools: Bash(npx *)
+allowed-tools: Bash(node *)
 ---
 
 Run this command and display the result:
 
 ```!
-npx -y -p @groundnuty/macf macf-plugin-cli ping $ARGUMENTS
+node "${CLAUDE_PLUGIN_ROOT}/dist/plugin/bin/macf-plugin-cli.js" ping $ARGUMENTS
 ```
