@@ -4,6 +4,14 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.2.40] — 2026-06-27
+
+Lockstep with `@groundnuty/macf*@0.2.40` (the fleet-health follow-up release).
+
+### Changed
+
+- **`scripts/mark-turn-state.sh`** now populates `tool_use_count` (derived in-script: reset on user-prompt-submit, +1 per pre-tool-use) so `/health.state.tool_use_count` is non-null mid-turn; `output_tokens` is null-by-design (`groundnuty/macf#612`).
+
 ## [0.2.39] — 2026-06-27
 
 Lockstep with `@groundnuty/macf*@0.2.39` (the fleet-health release — DR-030 interconnect-doctor + DR-031 agent-supervision framework).
