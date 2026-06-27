@@ -4,6 +4,10 @@ All notable changes to the `macf-agent` plugin will be documented in this file. 
 
 Tags follow the plugin version (`v<major>.<minor>.<patch>` + floating `v<major>.<minor>` + `v<major>`).
 
+## [0.2.41] — 2026-06-27
+
+Lockstep with `@groundnuty/macf*@0.2.41` (re-cut of 0.2.40 after a transient sigstore TLOG 409 on the 0.2.40 npm publish; content identical).
+
 ## [0.2.40] — 2026-06-27
 
 Lockstep with `@groundnuty/macf*@0.2.40` (the fleet-health follow-up release).
